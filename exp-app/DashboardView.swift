@@ -14,8 +14,11 @@ struct DashboardView: View {
     @State private var selectedDate = Date()
     @State private var showingBudgetEditor = false
     @State private var showingCustomize = false
+    @State private var showingMonthPicker = false
     @State private var trendCategoryFilter: Set<UUID> = []
     @State private var trendTypeFilter: Bool? = nil
+    @State private var selectedPieAngle: Double?
+    @State private var selectedBarCategory: String?
     
     private var calendar: Calendar { Calendar.current }
     private var selectedYear: Int { calendar.component(.year, from: selectedDate) }
@@ -141,15 +144,25 @@ struct DashboardView: View {
             
             Spacer()
             
-            VStack(spacing: 2) {
-                Text(monthLabel)
-                    .font(.title3.bold())
-                if isCurrentMonth {
-                    Text("Current Month")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+            Button {
+                showingMonthPicker = true
+            } label: {
+                VStack(spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(monthLabel)
+                            .font(.title3.bold())
+                        Image(systemName: "chevron.down")
+                            .font(.caption.bold())
+                    }
+                    if isCurrentMonth {
+                        Text("Current Month")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(.primary)
             
             Spacer()
             
@@ -166,6 +179,10 @@ struct DashboardView: View {
             .disabled(isCurrentMonth)
         }
         .padding(.horizontal, 4)
+        .sheet(isPresented: $showingMonthPicker) {
+            MonthYearPickerView(selectedDate: $selectedDate)
+                .presentationDetents([.height(320)])
+        }
     }
     
     // MARK: - Budget Summary Card
@@ -399,6 +416,18 @@ struct DashboardView: View {
     
     // MARK: - Category Donut Chart
     
+    private var selectedPieCategory: (name: String, icon: String, categoryID: UUID, total: Double)? {
+        guard let angle = selectedPieAngle else { return nil }
+        var cumulative = 0.0
+        for item in breakdown {
+            cumulative += item.total
+            if angle <= cumulative {
+                return item
+            }
+        }
+        return breakdown.last
+    }
+    
     private var categoryChartSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Spending by Category")
@@ -412,6 +441,33 @@ struct DashboardView: View {
                 )
                 .foregroundStyle(colorForCategory(item.categoryID))
                 .cornerRadius(4)
+                .opacity(selectedPieCategory == nil || selectedPieCategory?.categoryID == item.categoryID ? 1.0 : 0.4)
+            }
+            .chartAngleSelection(value: $selectedPieAngle)
+            .chartBackground { chartProxy in
+                GeometryReader { geometry in
+                    let frame = geometry[chartProxy.plotFrame!]
+                    VStack(spacing: 2) {
+                        if let selected = selectedPieCategory {
+                            Image(systemName: selected.icon)
+                                .font(.title3)
+                                .foregroundStyle(colorForCategory(selected.categoryID))
+                            Text(selected.name)
+                                .font(.caption.bold())
+                                .lineLimit(1)
+                            Text(selected.total, format: .currency(code: store.selectedCurrency))
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(totalSpent, format: .currency(code: store.selectedCurrency))
+                                .font(.callout.bold().monospacedDigit())
+                            Text("Total")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .position(x: frame.midX, y: frame.midY)
+                }
             }
             .frame(height: 220)
             
@@ -429,6 +485,21 @@ struct DashboardView: View {
                         Text(item.total, format: .currency(code: store.selectedCurrency))
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
+                    }
+                    .opacity(selectedPieCategory == nil || selectedPieCategory?.categoryID == item.categoryID ? 1.0 : 0.4)
+                    .onTapGesture {
+                        if selectedPieCategory?.categoryID == item.categoryID {
+                            selectedPieAngle = nil
+                        } else {
+                            var cumulative = 0.0
+                            for b in breakdown {
+                                cumulative += b.total
+                                if b.categoryID == item.categoryID {
+                                    selectedPieAngle = cumulative - item.total / 2
+                                    break
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -770,7 +841,9 @@ struct DashboardView: View {
                     .foregroundStyle(by: .value("Month", item.monthLabel))
                     .position(by: .value("Month", item.monthLabel))
                     .cornerRadius(4)
+                    .opacity(selectedBarCategory == nil || selectedBarCategory == item.categoryName ? 1.0 : 0.4)
                 }
+                .chartXSelection(value: $selectedBarCategory)
                 .chartForegroundStyleScale([
                     previousLabel: Color.accentColor.opacity(0.5),
                     currentLabel: Color.accentColor
@@ -796,6 +869,34 @@ struct DashboardView: View {
                     }
                 }
                 .frame(height: 220)
+                
+                if let selected = selectedBarCategory {
+                    let currentAmt = chartData.first(where: { $0.categoryName == selected && $0.monthLabel == currentLabel })?.amount
+                    let previousAmt = chartData.first(where: { $0.categoryName == selected && $0.monthLabel == previousLabel })?.amount
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(selected)
+                            .font(.caption.bold())
+                        HStack(spacing: 16) {
+                            if let prev = previousAmt {
+                                HStack(spacing: 4) {
+                                    Circle().fill(Color.accentColor.opacity(0.5)).frame(width: 8, height: 8)
+                                    Text("\(previousLabel): \(prev, format: .currency(code: store.selectedCurrency))")
+                                        .font(.caption.monospacedDigit())
+                                }
+                            }
+                            if let curr = currentAmt {
+                                HStack(spacing: 4) {
+                                    Circle().fill(Color.accentColor).frame(width: 8, height: 8)
+                                    Text("\(currentLabel): \(curr, format: .currency(code: store.selectedCurrency))")
+                                        .font(.caption.monospacedDigit())
+                                }
+                            }
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 4)
+                }
             }
         }
         .padding()
@@ -807,4 +908,72 @@ private struct InsightItem {
     let icon: String
     let message: String
     let color: Color
+}
+
+struct MonthYearPickerView: View {
+    @Binding var selectedDate: Date
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var pickerMonth: Int
+    @State private var pickerYear: Int
+    
+    private let months = Calendar.current.monthSymbols
+    private let currentYear = Calendar.current.component(.year, from: Date())
+    private let currentMonth = Calendar.current.component(.month, from: Date())
+    
+    init(selectedDate: Binding<Date>) {
+        _selectedDate = selectedDate
+        let cal = Calendar.current
+        _pickerMonth = State(initialValue: cal.component(.month, from: selectedDate.wrappedValue))
+        _pickerYear = State(initialValue: cal.component(.year, from: selectedDate.wrappedValue))
+    }
+    
+    private var yearRange: [Int] {
+        Array((currentYear - 10)...currentYear)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                HStack(spacing: 0) {
+                    Picker("Month", selection: $pickerMonth) {
+                        ForEach(1...12, id: \.self) { month in
+                            Text(months[month - 1]).tag(month)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    
+                    Picker("Year", selection: $pickerYear) {
+                        ForEach(yearRange, id: \.self) { year in
+                            Text(String(year)).tag(year)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                }
+                .frame(height: 160)
+                
+                Button {
+                    if let date = Calendar.current.date(from: DateComponents(year: pickerYear, month: pickerMonth, day: 1)) {
+                        if date <= Date() {
+                            selectedDate = date
+                        }
+                    }
+                    dismiss()
+                } label: {
+                    Text("Select")
+                        .font(.body.bold())
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.horizontal)
+            }
+            .navigationTitle("Select Month")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
 }

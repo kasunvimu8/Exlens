@@ -9,9 +9,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(ExpenseStore.self) private var store
-    @State private var showingAddCategory = false
-    @State private var editingCategory: CustomCategory?
     @State private var defaultBudgetText = ""
+    @FocusState private var budgetFieldFocused: Bool
     @State private var showingImport = false
     @State private var showingExport = false
     @State private var showingDeleteAllConfirmation = false
@@ -29,44 +28,15 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    ForEach(store.categories) { category in
-                        HStack(spacing: 12) {
-                            Image(systemName: category.icon)
-                                .font(.body)
-                                .foregroundStyle(Color.fromString(category.color))
-                                .frame(width: 34, height: 34)
-                                .background(Color.fromString(category.color).opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                            
-                            Text(category.name)
-                            
-                            Spacer()
-                            
-                            Button {
-                                editingCategory = category
-                            } label: {
-                                Image(systemName: "pencil.circle.fill")
-                                    .font(.title3)
-                                    .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                    .onDelete { offsets in
-                        store.deleteCategory(at: offsets)
-                    }
-                } header: {
-                    Label("Categories", systemImage: "folder.fill")
-                } footer: {
-                    Text("Swipe to delete categories. Note: Deleting a category won't delete existing expenses.")
-                }
-                
-                Section {
-                    Button {
-                        showingAddCategory = true
+                    NavigationLink {
+                        CategoriesView()
                     } label: {
-                        Label("Add Category", systemImage: "plus.circle.fill")
+                        HStack {
+                            Label("Categories", systemImage: "folder.fill")
+                            Spacer()
+                            Text("\(store.categories.count)")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 
@@ -89,6 +59,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                         TextField(ExpenseStore.amountPlaceholder, text: $defaultBudgetText)
                             .keyboardType(.decimalPad)
+                            .focused($budgetFieldFocused)
                             .onChange(of: defaultBudgetText) { oldValue, newValue in
                                 let sanitized = ExpenseStore.sanitizeDecimalInput(old: oldValue, new: newValue)
                                 if sanitized != newValue {
@@ -151,12 +122,6 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .sheet(isPresented: $showingAddCategory) {
-                AddCategoryView()
-            }
-            .sheet(item: $editingCategory) { category in
-                EditCategoryView(category: category)
-            }
             .sheet(isPresented: $showingImport) {
                 CSVImportView()
             }
@@ -170,6 +135,12 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This will permanently delete all \(store.expenses.count) expenses. This action cannot be undone.")
+            }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { budgetFieldFocused = false }
+                }
             }
             .onAppear {
                 if store.defaultBudget > 0 {
@@ -237,6 +208,106 @@ struct CSVExportShareSheet: View {
     }
 }
 
+// MARK: - Shared Icon & Color Options
+
+private let categoryIcons = [
+    // Shopping & Finance
+    "tag.fill", "cart.fill", "bag.fill", "creditcard.fill", "banknote.fill",
+    "giftcard.fill", "gift.fill", "storefront.fill",
+    // Food & Drink
+    "fork.knife", "cup.and.saucer.fill", "wineglass.fill", "takeoutbag.and.cup.and.straw.fill",
+    // Transport
+    "car.fill", "bus.fill", "bicycle", "airplane", "fuelpump.fill", "tram.fill",
+    // Home & Utilities
+    "house.fill", "lightbulb.fill", "bolt.fill", "drop.fill", "wifi",
+    "wrench.and.screwdriver.fill", "washer.fill",
+    // Health & Fitness
+    "heart.fill", "bandage.fill", "cross.case.fill", "figure.run", "dumbbell.fill",
+    // Entertainment
+    "film.fill", "gamecontroller.fill", "music.note", "tv.fill", "popcorn.fill",
+    "ticket.fill", "theatermasks.fill",
+    // Education & Work
+    "book.fill", "graduationcap.fill", "doc.text.fill", "briefcase.fill",
+    "desktopcomputer", "laptopcomputer",
+    // Personal
+    "tshirt.fill", "phone.fill", "paintbrush.fill", "camera.fill",
+    "scissors", "pawprint.fill", "leaf.fill",
+    // Other
+    "ellipsis.circle.fill", "star.fill", "flag.fill", "bell.fill",
+    "mappin.circle.fill", "globe.americas.fill"
+]
+
+private let categoryColors = [
+    "red", "orange", "yellow", "green", "blue", "purple",
+    "pink", "gray", "brown", "cyan", "indigo", "mint", "teal"
+]
+
+// MARK: - Categories View
+
+struct CategoriesView: View {
+    @Environment(ExpenseStore.self) private var store
+    @State private var showingAddCategory = false
+    @State private var editingCategory: CustomCategory?
+    
+    var body: some View {
+        List {
+            ForEach(store.categories) { category in
+                Button {
+                    editingCategory = category
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: category.icon)
+                            .font(.body)
+                            .foregroundStyle(Color.fromString(category.color))
+                            .frame(width: 34, height: 34)
+                            .background(Color.fromString(category.color).opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                        
+                        Text(category.name)
+                            .foregroundStyle(.primary)
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .onDelete { offsets in
+                store.deleteCategory(at: offsets)
+            }
+        }
+        .navigationTitle("Categories")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingAddCategory = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddCategory) {
+            AddCategoryView()
+        }
+        .sheet(item: $editingCategory) { category in
+            EditCategoryView(category: category)
+        }
+        .overlay {
+            if store.categories.isEmpty {
+                ContentUnavailableView(
+                    "No Categories",
+                    systemImage: "folder",
+                    description: Text("Tap + to add your first category.")
+                )
+            }
+        }
+    }
+}
+
+// MARK: - Add Category
+
 struct AddCategoryView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ExpenseStore.self) private var store
@@ -245,67 +316,9 @@ struct AddCategoryView: View {
     @State private var selectedIcon = "tag.fill"
     @State private var selectedColor = "blue"
     
-    let availableIcons = [
-        "tag.fill", "fork.knife", "car.fill", "bag.fill", "doc.text.fill",
-        "film.fill", "house.fill", "heart.fill", "gamecontroller.fill",
-        "book.fill", "cart.fill", "creditcard.fill", "gift.fill",
-        "cup.and.saucer.fill", "bandage.fill", "bicycle", "airplane",
-        "tshirt.fill", "phone.fill", "desktopcomputer", "paintbrush.fill"
-    ]
-    
-    let availableColors = [
-        "red", "orange", "yellow", "green", "blue", "purple",
-        "pink", "gray", "brown", "cyan", "indigo", "mint", "teal"
-    ]
-    
     var body: some View {
         NavigationStack {
             Form {
-                Section("Category Name") {
-                    TextField("Name", text: $name)
-                }
-                
-                Section("Icon") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 50))], spacing: 16) {
-                        ForEach(availableIcons, id: \.self) { icon in
-                            Button {
-                                selectedIcon = icon
-                            } label: {
-                                Image(systemName: icon)
-                                    .font(.title2)
-                                    .foregroundStyle(selectedIcon == icon ? Color.accentColor : .secondary)
-                                    .frame(width: 44, height: 44)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(selectedIcon == icon ? Color.accentColor.opacity(0.1) : Color.clear)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.vertical, 8)
-                }
-                
-                Section("Color") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 50))], spacing: 16) {
-                        ForEach(availableColors, id: \.self) { colorName in
-                            Button {
-                                selectedColor = colorName
-                            } label: {
-                                Circle()
-                                    .fill(Color.fromString(colorName))
-                                    .frame(width: 44, height: 44)
-                                    .overlay(
-                                        Circle()
-                                            .strokeBorder(Color.primary, lineWidth: selectedColor == colorName ? 3 : 0)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.vertical, 8)
-                }
-                
                 Section {
                     HStack {
                         Spacer()
@@ -315,15 +328,59 @@ struct AddCategoryView: View {
                                 .foregroundStyle(Color.fromString(selectedColor))
                                 .frame(width: 64, height: 64)
                                 .background(Color.fromString(selectedColor).opacity(0.12), in: Circle())
-                            Text(name.isEmpty ? "Preview" : name)
+                            Text(name.isEmpty ? "New Category" : name)
                                 .font(.subheadline.bold())
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(name.isEmpty ? .secondary : .primary)
                         }
                         Spacer()
                     }
                     .padding(.vertical, 8)
-                } header: {
-                    Text("Preview")
+                    .listRowBackground(Color.clear)
+                }
+                
+                Section("Name") {
+                    TextField("Category name", text: $name)
+                }
+                
+                Section("Icon") {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 44))], spacing: 12) {
+                        ForEach(categoryIcons, id: \.self) { icon in
+                            Button {
+                                selectedIcon = icon
+                            } label: {
+                                Image(systemName: icon)
+                                    .font(.title3)
+                                    .foregroundStyle(selectedIcon == icon ? Color.accentColor : .secondary)
+                                    .frame(width: 40, height: 40)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(selectedIcon == icon ? Color.accentColor.opacity(0.12) : Color.clear)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                
+                Section("Color") {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 44))], spacing: 12) {
+                        ForEach(categoryColors, id: \.self) { colorName in
+                            Button {
+                                selectedColor = colorName
+                            } label: {
+                                Circle()
+                                    .fill(Color.fromString(colorName))
+                                    .frame(width: 40, height: 40)
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(Color.primary, lineWidth: selectedColor == colorName ? 3 : 0)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
                 }
             }
             .navigationTitle("New Category")
@@ -349,6 +406,8 @@ struct AddCategoryView: View {
     }
 }
 
+// MARK: - Edit Category
+
 struct EditCategoryView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ExpenseStore.self) private var store
@@ -359,56 +418,62 @@ struct EditCategoryView: View {
     @State private var selectedColor = ""
     @State private var showingDeleteConfirmation = false
     
-    let availableIcons = [
-        "tag.fill", "fork.knife", "car.fill", "bag.fill", "doc.text.fill",
-        "film.fill", "house.fill", "heart.fill", "gamecontroller.fill",
-        "book.fill", "cart.fill", "creditcard.fill", "gift.fill",
-        "cup.and.saucer.fill", "bandage.fill", "bicycle", "airplane",
-        "tshirt.fill", "phone.fill", "desktopcomputer", "paintbrush.fill"
-    ]
-    
-    let availableColors = [
-        "red", "orange", "yellow", "green", "blue", "purple",
-        "pink", "gray", "brown", "cyan", "indigo", "mint", "teal"
-    ]
-    
     var body: some View {
         NavigationStack {
             Form {
-                Section("Category Name") {
-                    TextField("Name", text: $name)
+                Section {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: selectedIcon.isEmpty ? "tag.fill" : selectedIcon)
+                                .font(.system(size: 40))
+                                .foregroundStyle(Color.fromString(selectedColor.isEmpty ? "blue" : selectedColor))
+                                .frame(width: 64, height: 64)
+                                .background(Color.fromString(selectedColor.isEmpty ? "blue" : selectedColor).opacity(0.12), in: Circle())
+                            Text(name.isEmpty ? "Preview" : name)
+                                .font(.subheadline.bold())
+                                .foregroundStyle(name.isEmpty ? .secondary : .primary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                    .listRowBackground(Color.clear)
+                }
+                
+                Section("Name") {
+                    TextField("Category name", text: $name)
                 }
                 
                 Section("Icon") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 50))], spacing: 16) {
-                        ForEach(availableIcons, id: \.self) { icon in
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 44))], spacing: 12) {
+                        ForEach(categoryIcons, id: \.self) { icon in
                             Button {
                                 selectedIcon = icon
                             } label: {
                                 Image(systemName: icon)
-                                    .font(.title2)
+                                    .font(.title3)
                                     .foregroundStyle(selectedIcon == icon ? Color.accentColor : .secondary)
-                                    .frame(width: 44, height: 44)
+                                    .frame(width: 40, height: 40)
                                     .background(
                                         RoundedRectangle(cornerRadius: 8)
-                                            .fill(selectedIcon == icon ? Color.accentColor.opacity(0.1) : Color.clear)
+                                            .fill(selectedIcon == icon ? Color.accentColor.opacity(0.12) : Color.clear)
                                     )
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 4)
                 }
                 
                 Section("Color") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 50))], spacing: 16) {
-                        ForEach(availableColors, id: \.self) { colorName in
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 44))], spacing: 12) {
+                        ForEach(categoryColors, id: \.self) { colorName in
                             Button {
                                 selectedColor = colorName
                             } label: {
                                 Circle()
                                     .fill(Color.fromString(colorName))
-                                    .frame(width: 44, height: 44)
+                                    .frame(width: 40, height: 40)
                                     .overlay(
                                         Circle()
                                             .strokeBorder(Color.primary, lineWidth: selectedColor == colorName ? 3 : 0)
@@ -417,27 +482,7 @@ struct EditCategoryView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.vertical, 8)
-                }
-                
-                Section {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 8) {
-                            Image(systemName: selectedIcon)
-                                .font(.system(size: 40))
-                                .foregroundStyle(Color.fromString(selectedColor))
-                                .frame(width: 64, height: 64)
-                                .background(Color.fromString(selectedColor).opacity(0.12), in: Circle())
-                            Text(name.isEmpty ? "Preview" : name)
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.primary)
-                        }
-                        Spacer()
-                    }
-                    .padding(.vertical, 8)
-                } header: {
-                    Text("Preview")
+                    .padding(.vertical, 4)
                 }
                 
                 Section {
