@@ -1,0 +1,27 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mainGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0D4B8A"/>
+      <stop offset="100%" stop-color="#E6F1FB"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="1024" height="1024" rx="180" fill="url(#mainGradient)"/>
+
+  <!-- Subtle shine ellipse -->
+  <ellipse cx="385" cy="325" rx="100" ry="70" fill="#ffffff" opacity="0.12"/>
+
+  <!-- Growth arrow path -->
+  <path
+    d="M280 750 L480 400 L700 550 L540 250"
+    stroke="#ffffff"
+    stroke-width="50"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Arrow head circle at top -->
+  <circle cx="540" cy="250" r="65" fill="#ffffff"/>
+</svg>

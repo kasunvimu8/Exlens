@@ -9,9 +9,13 @@ import SwiftUI
 
 @main
 struct exp_appApp: App {
+    @State private var store = ExpenseStore()
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(store)
+                .preferredColorScheme(store.preferredColorScheme)
         }
     }
 }
