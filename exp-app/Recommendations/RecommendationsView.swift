@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Charts
 
 struct RecommendationsView: View {
     @Environment(ExpenseStore.self) private var store
@@ -47,6 +46,41 @@ struct RecommendationsView: View {
         store.categoryBreakdown(for: prevYear, month: prevMonth)
     }
     
+    private var currentMonthLabel: String {
+        formatMonthLabel(year: currentYear, month: currentMonth)
+    }
+    private var previousMonthLabel: String {
+        formatMonthLabel(year: prevYear, month: prevMonth)
+    }
+    
+    private var categoryTrends: [CategoryTrend] {
+        var allCategoryIDs = Set<UUID>()
+        var currentMap: [UUID: (name: String, icon: String, total: Double)] = [:]
+        var previousMap: [UUID: (name: String, icon: String, total: Double)] = [:]
+        
+        for item in currentBreakdown {
+            allCategoryIDs.insert(item.categoryID)
+            currentMap[item.categoryID] = (name: item.name, icon: item.icon, total: item.total)
+        }
+        for item in previousBreakdown {
+            allCategoryIDs.insert(item.categoryID)
+            previousMap[item.categoryID] = (name: item.name, icon: item.icon, total: item.total)
+        }
+        
+        return allCategoryIDs.map { id in
+            let current = currentMap[id]
+            let previous = previousMap[id]
+            return CategoryTrend(
+                id: id,
+                name: current?.name ?? previous?.name ?? "Unknown",
+                icon: current?.icon ?? previous?.icon ?? "questionmark.circle",
+                currentAmount: current?.total ?? 0,
+                previousAmount: previous?.total ?? 0
+            )
+        }
+        .sorted { abs($0.change) > abs($1.change) }
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -61,12 +95,19 @@ struct RecommendationsView: View {
                         monthComparisonSelector
                         monthOverMonthCard
                         
-                        if !last6MonthsData.isEmpty {
-                            spendingTrendChart
-                        }
+                        SpendingTrendChart(
+                            currentYear: currentYear,
+                            currentMonth: currentMonth,
+                            currencyCode: store.selectedCurrency
+                        )
                         
                         if !categoryTrends.isEmpty {
-                            categoryTrendsSection
+                            CategoryTrendsSection(
+                                trends: categoryTrends,
+                                previousMonthLabel: previousMonthLabel,
+                                currentMonthLabel: currentMonthLabel,
+                                currencyCode: store.selectedCurrency
+                            )
                         }
                         
                         recommendationsSection
@@ -78,14 +119,7 @@ struct RecommendationsView: View {
         }
     }
     
-    // MARK: - Month-over-Month Summary
-    
-    private var currentMonthLabel: String {
-        formatMonthLabel(year: currentYear, month: currentMonth)
-    }
-    private var previousMonthLabel: String {
-        formatMonthLabel(year: prevYear, month: prevMonth)
-    }
+    // MARK: - Helpers
     
     private func formatMonthLabel(year: Int, month: Int) -> String {
         let components = DateComponents(year: year, month: month)
@@ -99,9 +133,10 @@ struct RecommendationsView: View {
         return date.formatted(.dateTime.month(.abbreviated).year(.twoDigits))
     }
     
+    // MARK: - Month Comparison Selector
+    
     private var monthComparisonSelector: some View {
         HStack {
-            // Left side: "previous" month (Month 2)
             Menu {
                 ForEach(store.availableMonths(), id: \.label) { item in
                     Button(item.label) {
@@ -125,7 +160,6 @@ struct RecommendationsView: View {
             Image(systemName: "arrow.right")
                 .foregroundStyle(.secondary)
             
-            // Right side: "current" month (Month 1)
             Menu {
                 ForEach(store.availableMonths(), id: \.label) { item in
                     Button(item.label) {
@@ -148,6 +182,8 @@ struct RecommendationsView: View {
         }
         .frame(maxWidth: .infinity)
     }
+    
+    // MARK: - Month over Month Card
     
     private var monthOverMonthCard: some View {
         VStack(spacing: 16) {
@@ -202,221 +238,6 @@ struct RecommendationsView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
     
-    // MARK: - Spending Trend Chart (Last 6 Months)
-    
-    private struct MonthData: Identifiable {
-        let id = UUID()
-        let label: String
-        let total: Double
-        let year: Int
-        let month: Int
-    }
-    
-    private var last6MonthsData: [MonthData] {
-        (0..<6).reversed().compactMap { offset in
-            guard let date = calendar.date(byAdding: .month, value: -offset, to: Date()) else { return nil }
-            let y = calendar.component(.year, from: date)
-            let m = calendar.component(.month, from: date)
-            let total = store.totalSpent(for: y, month: m)
-            let label = date.formatted(.dateTime.month(.abbreviated))
-            return MonthData(label: label, total: total, year: y, month: m)
-        }
-    }
-    
-    private var spendingTrendChart: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("6-Month Trend")
-                .font(.headline)
-            
-            Chart(last6MonthsData) { item in
-                BarMark(
-                    x: .value("Month", item.label),
-                    y: .value("Amount", item.total)
-                )
-                .foregroundStyle(
-                    item.year == currentYear && item.month == currentMonth
-                        ? Color.accentColor.gradient
-                        : Color.accentColor.opacity(0.4).gradient
-                )
-                .cornerRadius(4)
-            }
-            .chartYAxis {
-                AxisMarks(values: .automatic) { value in
-                    AxisValueLabel {
-                        if let amount = value.as(Double.self) {
-                            Text(amount, format: .currency(code: store.selectedCurrency))
-                                .font(.caption2)
-                        }
-                    }
-                }
-            }
-            .frame(height: 180)
-            
-            if last6MonthsData.filter({ $0.total > 0 }).count >= 3 {
-                let recent3 = last6MonthsData.suffix(3)
-                let older3 = last6MonthsData.prefix(3)
-                let recentAvg = recent3.map(\.total).reduce(0, +) / max(Double(recent3.count), 1)
-                let olderAvg = older3.map(\.total).reduce(0, +) / max(Double(older3.count), 1)
-                
-                if olderAvg > 0 {
-                    let trendPct = ((recentAvg - olderAvg) / olderAvg) * 100
-                    HStack(spacing: 6) {
-                        Image(systemName: trendPct >= 0 ? "arrow.up.right" : "arrow.down.right")
-                            .font(.caption)
-                            .foregroundStyle(trendPct > 5 ? .red : trendPct < -5 ? .green : .secondary)
-                        Text("Overall trend: \(trendPct >= 0 ? "+" : "")\(Int(trendPct))% over 6 months")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-    }
-    
-    // MARK: - Category Trends
-    
-    private struct CategoryTrend: Identifiable {
-        let id: UUID
-        let name: String
-        let icon: String
-        let currentAmount: Double
-        let previousAmount: Double
-        var change: Double { currentAmount - previousAmount }
-        var changePercent: Double {
-            guard previousAmount > 0 else { return currentAmount > 0 ? 100 : 0 }
-            return (change / previousAmount) * 100
-        }
-        var status: TrendStatus {
-            if previousAmount == 0 && currentAmount > 0 { return .new }
-            if currentAmount == 0 && previousAmount > 0 { return .gone }
-            if change > 0 { return .increased }
-            if change < 0 { return .decreased }
-            return .unchanged
-        }
-    }
-    
-    private enum TrendStatus {
-        case increased, decreased, unchanged, new, gone
-        
-        var icon: String {
-            switch self {
-            case .increased: return "arrow.up.circle.fill"
-            case .decreased: return "arrow.down.circle.fill"
-            case .unchanged: return "equal.circle.fill"
-            case .new: return "plus.circle.fill"
-            case .gone: return "minus.circle.fill"
-            }
-        }
-        
-        var color: Color {
-            switch self {
-            case .increased: return .red
-            case .decreased: return .green
-            case .unchanged: return .secondary
-            case .new: return .orange
-            case .gone: return .secondary
-            }
-        }
-        
-        var label: String {
-            switch self {
-            case .increased: return "Increased"
-            case .decreased: return "Decreased"
-            case .unchanged: return "Unchanged"
-            case .new: return "New this month"
-            case .gone: return "Not spent this month"
-            }
-        }
-    }
-    
-    private var categoryTrends: [CategoryTrend] {
-        var allCategoryIDs = Set<UUID>()
-        var currentMap: [UUID: (name: String, icon: String, total: Double)] = [:]
-        var previousMap: [UUID: (name: String, icon: String, total: Double)] = [:]
-        
-        for item in currentBreakdown {
-            allCategoryIDs.insert(item.categoryID)
-            currentMap[item.categoryID] = (name: item.name, icon: item.icon, total: item.total)
-        }
-        for item in previousBreakdown {
-            allCategoryIDs.insert(item.categoryID)
-            previousMap[item.categoryID] = (name: item.name, icon: item.icon, total: item.total)
-        }
-        
-        return allCategoryIDs.map { id in
-            let current = currentMap[id]
-            let previous = previousMap[id]
-            return CategoryTrend(
-                id: id,
-                name: current?.name ?? previous?.name ?? "Unknown",
-                icon: current?.icon ?? previous?.icon ?? "questionmark.circle",
-                currentAmount: current?.total ?? 0,
-                previousAmount: previous?.total ?? 0
-            )
-        }
-        .sorted { abs($0.change) > abs($1.change) }
-    }
-    
-    private var categoryTrendsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Category Trends")
-                .font(.headline)
-            
-            Text("\(previousMonthLabel) vs \(currentMonthLabel)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            
-            ForEach(categoryTrends) { trend in
-                HStack {
-                    Image(systemName: trend.icon)
-                        .foregroundStyle(colorForCategory(trend.id))
-                        .frame(width: 28)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(trend.name)
-                            .font(.subheadline)
-                        Text(trend.status.label)
-                            .font(.caption)
-                            .foregroundStyle(trend.status.color)
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .trailing, spacing: 2) {
-                        HStack(spacing: 4) {
-                            Image(systemName: trend.status.icon)
-                                .font(.caption)
-                                .foregroundStyle(trend.status.color)
-                            Text(abs(trend.change), format: .currency(code: store.selectedCurrency))
-                                .font(.subheadline.monospacedDigit())
-                        }
-                        if trend.previousAmount > 0 && trend.status != .unchanged {
-                            Text("\(trend.changePercent >= 0 ? "+" : "")\(Int(trend.changePercent))%")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                
-                if trend.id != categoryTrends.last?.id {
-                    Divider()
-                }
-            }
-        }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-    }
-    
-    private func colorForCategory(_ categoryID: UUID) -> Color {
-        if let category = store.categories.first(where: { $0.id == categoryID }) {
-            return Color.fromString(category.color)
-        }
-        let palette: [Color] = [.blue, .red, .green, .orange, .purple, .pink, .cyan, .brown, .indigo, .teal]
-        return palette[abs(categoryID.hashValue) % palette.count]
-    }
-    
     // MARK: - Recommendations
     
     private var recommendationsSection: some View {
@@ -450,20 +271,19 @@ struct RecommendationsView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
     
-    private func generateRecommendations() -> [RecommendationItem] {
-        var recs: [RecommendationItem] = []
+    private func generateRecommendations() -> [InsightItem] {
+        var recs: [InsightItem] = []
         let currency = store.selectedCurrency
         
-        // 1. Overall spending direction
         if previousTotal > 0 && currentTotal > 0 {
             if totalChange > 0 {
-                recs.append(RecommendationItem(
+                recs.append(InsightItem(
                     icon: "exclamationmark.triangle.fill",
                     message: "Your spending increased by \(abs(totalChange).formatted(.currency(code: currency))) (\(Int(abs(totalChangePercent)))%) compared to last month. Review your expenses to find areas to cut back.",
                     color: .red
                 ))
             } else if totalChange < 0 {
-                recs.append(RecommendationItem(
+                recs.append(InsightItem(
                     icon: "hand.thumbsup.fill",
                     message: "Great job! You spent \(abs(totalChange).formatted(.currency(code: currency))) (\(Int(abs(totalChangePercent)))%) less than last month.",
                     color: .green
@@ -471,38 +291,34 @@ struct RecommendationsView: View {
             }
         }
         
-        // 2. Biggest category increases
         let increases = categoryTrends.filter { $0.status == .increased }.prefix(2)
         for trend in increases {
-            recs.append(RecommendationItem(
+            recs.append(InsightItem(
                 icon: "arrow.up.right.circle.fill",
                 message: "\(trend.name) spending went up by \(abs(trend.change).formatted(.currency(code: currency))) (\(Int(abs(trend.changePercent)))%). Consider setting a limit for this category.",
                 color: .orange
             ))
         }
         
-        // 3. Biggest category decreases
         let decreases = categoryTrends.filter { $0.status == .decreased }.prefix(1)
         for trend in decreases {
-            recs.append(RecommendationItem(
+            recs.append(InsightItem(
                 icon: "arrow.down.right.circle.fill",
                 message: "You reduced \(trend.name) spending by \(abs(trend.change).formatted(.currency(code: currency))). Keep it up!",
                 color: .green
             ))
         }
         
-        // 4. New categories
         let newCats = categoryTrends.filter { $0.status == .new }
         if !newCats.isEmpty {
             let names = newCats.map(\.name).joined(separator: ", ")
-            recs.append(RecommendationItem(
+            recs.append(InsightItem(
                 icon: "sparkles",
                 message: "New spending this month: \(names). Watch these to make sure they don't become recurring surprises.",
                 color: .purple
             ))
         }
         
-        // 5. Budget adherence trend
         let currentBudget = store.budget(for: currentYear, month: currentMonth)?.amount ?? 0
         let prevBudget = store.budget(for: prevYear, month: prevMonth)?.amount ?? 0
         
@@ -510,13 +326,13 @@ struct RecommendationsView: View {
             let currentRatio = currentTotal / currentBudget
             let prevRatio = previousTotal / prevBudget
             if currentRatio > prevRatio && currentRatio > 0.8 {
-                recs.append(RecommendationItem(
+                recs.append(InsightItem(
                     icon: "chart.line.uptrend.xyaxis",
                     message: "You're using a larger portion of your budget compared to last month. Consider adjusting your spending or increasing your budget.",
                     color: .orange
                 ))
             } else if currentRatio < prevRatio && currentRatio < 0.7 {
-                recs.append(RecommendationItem(
+                recs.append(InsightItem(
                     icon: "checkmark.seal.fill",
                     message: "You're staying well within budget this month, better than last month. Excellent discipline!",
                     color: .green
@@ -524,7 +340,6 @@ struct RecommendationsView: View {
             }
         }
         
-        // 6. Fixed vs variable cost insight
         let currentFixed = store.fixedCostTotal(for: currentYear, month: currentMonth)
         let prevFixed = store.fixedCostTotal(for: prevYear, month: prevMonth)
         if currentFixed > 0 && currentTotal > 0 {
@@ -532,7 +347,7 @@ struct RecommendationsView: View {
             if prevFixed > 0 {
                 let fixedChange = currentFixed - prevFixed
                 if fixedChange > 0 {
-                    recs.append(RecommendationItem(
+                    recs.append(InsightItem(
                         icon: "pin.circle.fill",
                         message: "Fixed costs increased by \(abs(fixedChange).formatted(.currency(code: currency))). Review recurring expenses like subscriptions or rent.",
                         color: .orange
@@ -540,7 +355,7 @@ struct RecommendationsView: View {
                 }
             }
             if fixedPct > 60 {
-                recs.append(RecommendationItem(
+                recs.append(InsightItem(
                     icon: "lock.circle.fill",
                     message: "\(fixedPct)% of your spending is fixed costs. Look for variable expenses you can reduce for more flexibility.",
                     color: .blue
@@ -548,7 +363,6 @@ struct RecommendationsView: View {
             }
         }
         
-        // 7. 3-month trend
         let data3 = (0..<3).compactMap { offset -> Double? in
             guard let date = calendar.date(byAdding: .month, value: -offset, to: Date()) else { return nil }
             let y = calendar.component(.year, from: date)
@@ -557,13 +371,13 @@ struct RecommendationsView: View {
         }
         if data3.count == 3 && data3[2] > 0 && data3[1] > 0 && data3[0] > 0 {
             if data3[0] > data3[1] && data3[1] > data3[2] {
-                recs.append(RecommendationItem(
+                recs.append(InsightItem(
                     icon: "exclamationmark.circle.fill",
                     message: "Your spending has been increasing for 3 consecutive months. Take a closer look at your habits to reverse the trend.",
                     color: .red
                 ))
             } else if data3[0] < data3[1] && data3[1] < data3[2] {
-                recs.append(RecommendationItem(
+                recs.append(InsightItem(
                     icon: "star.fill",
                     message: "Your spending has been decreasing for 3 consecutive months. Fantastic progress!",
                     color: .green
@@ -573,10 +387,4 @@ struct RecommendationsView: View {
         
         return recs
     }
-}
-
-private struct RecommendationItem {
-    let icon: String
-    let message: String
-    let color: Color
 }

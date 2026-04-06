@@ -114,10 +114,7 @@ struct AddExpenseView: View {
         return true
     }
     
-    private var currencySymbol: String {
-        let locale = Locale(identifier: Locale.identifier(fromComponents: [NSLocale.Key.currencyCode.rawValue: store.selectedCurrency]))
-        return locale.currencySymbol ?? store.selectedCurrency
-    }
+    private var currencySymbol: String { store.currencySymbol }
     
     private func saveExpense() {
         guard let value = ExpenseStore.parseAmount(amount),
