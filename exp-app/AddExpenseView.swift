@@ -28,7 +28,9 @@ struct AddExpenseView: View {
                         Text(currencySymbol)
                             .foregroundStyle(.secondary)
                         TextField(ExpenseStore.amountPlaceholder, text: $amount)
+#if os(iOS)
                             .keyboardType(.decimalPad)
+#endif
                             .focused($amountFieldFocused)
                             .onChange(of: amount) { oldValue, newValue in
                                 amount = ExpenseStore.sanitizeDecimalInput(old: oldValue, new: newValue)
@@ -64,12 +66,16 @@ struct AddExpenseView: View {
                                 .tag(cat as CustomCategory?)
                             }
                         }
+#if os(iOS)
                         .pickerStyle(.navigationLink)
+#endif
                     }
                 }
             }
             .navigationTitle("Add Expense")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

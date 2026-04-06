@@ -38,7 +38,9 @@ struct CSVImportView: View {
                 }
             }
             .navigationTitle("Import CSV")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -74,7 +76,7 @@ struct CSVImportView: View {
                     .font(.subheadline.monospaced())
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                 
                 Text("Date format: yyyy-MM-dd (e.g. 2025-03-15)\nisFixed: true/false or yes/no")
                     .font(.caption)

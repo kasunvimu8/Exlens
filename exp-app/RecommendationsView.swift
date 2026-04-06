@@ -119,7 +119,7 @@ struct RecommendationsView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color(.systemGray6), in: Capsule())
+                .background(Color.secondary.opacity(0.12), in: Capsule())
             }
             
             Image(systemName: "arrow.right")
@@ -143,7 +143,7 @@ struct RecommendationsView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color(.systemGray6), in: Capsule())
+                .background(Color.secondary.opacity(0.12), in: Capsule())
             }
         }
         .frame(maxWidth: .infinity)

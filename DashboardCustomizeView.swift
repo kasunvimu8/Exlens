@@ -41,9 +41,13 @@ struct DashboardCustomizeView: View {
                     }
                 }
             }
+#if os(iOS)
             .environment(\.editMode, .constant(.active))
+#endif
             .navigationTitle("Customize Dashboard")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

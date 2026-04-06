@@ -32,7 +32,9 @@ struct BudgetEditorView: View {
                         Text(currencySymbol)
                             .foregroundStyle(.secondary)
                         TextField(ExpenseStore.amountPlaceholder, text: $budgetText)
+#if os(iOS)
                             .keyboardType(.decimalPad)
+#endif
                             .focused($isFocused)
                             .onChange(of: budgetText) { oldValue, newValue in
                                 budgetText = ExpenseStore.sanitizeDecimalInput(old: oldValue, new: newValue)
@@ -54,7 +56,9 @@ struct BudgetEditorView: View {
                 }
             }
             .navigationTitle("Monthly Budget")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

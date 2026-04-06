@@ -150,7 +150,7 @@ struct ExpensesView: View {
             .searchable(text: $searchText, prompt: "Search expenses")
             .navigationTitle("Expenses")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem {
                     Menu {
                         Button {
                             showingImport = true
@@ -169,7 +169,7 @@ struct ExpensesView: View {
                     }
                 }
                 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button(action: { showingAddExpense = true }) {
                         Image(systemName: "plus")
                     }
@@ -346,7 +346,7 @@ struct ExpensesView: View {
                             .font(.caption.bold())
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(typeFilter == type ? Color.accentColor.opacity(0.15) : Color(.systemGray6))
+                            .background(typeFilter == type ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.12))
                             .foregroundStyle(typeFilter == type ? Color.accentColor : .primary)
                             .clipShape(Capsule())
                     }
@@ -373,7 +373,7 @@ struct ExpensesView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(selectedMonthYear != nil ? Color.accentColor.opacity(0.15) : Color(.systemGray6))
+                    .background(selectedMonthYear != nil ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.12))
                     .foregroundStyle(selectedMonthYear != nil ? Color.accentColor : .primary)
                     .clipShape(Capsule())
                 }
@@ -407,7 +407,7 @@ struct ExpensesView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(!selectedCategoryIDs.isEmpty ? Color.accentColor.opacity(0.15) : Color(.systemGray6))
+                    .background(!selectedCategoryIDs.isEmpty ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.12))
                     .foregroundStyle(!selectedCategoryIDs.isEmpty ? Color.accentColor : .primary)
                     .clipShape(Capsule())
                 }

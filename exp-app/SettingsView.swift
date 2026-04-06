@@ -58,7 +58,9 @@ struct SettingsView: View {
                         Text(currencySymbol)
                             .foregroundStyle(.secondary)
                         TextField(ExpenseStore.amountPlaceholder, text: $defaultBudgetText)
+#if os(iOS)
                             .keyboardType(.decimalPad)
+#endif
                             .focused($budgetFieldFocused)
                             .onChange(of: defaultBudgetText) { oldValue, newValue in
                                 let sanitized = ExpenseStore.sanitizeDecimalInput(old: oldValue, new: newValue)
@@ -198,7 +200,9 @@ struct CSVExportShareSheet: View {
             }
             .padding()
             .navigationTitle("Export")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
@@ -384,7 +388,9 @@ struct AddCategoryView: View {
                 }
             }
             .navigationTitle("New Category")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -493,7 +499,9 @@ struct EditCategoryView: View {
                 }
             }
             .navigationTitle("Edit Category")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
