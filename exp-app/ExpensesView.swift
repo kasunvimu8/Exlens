@@ -193,27 +193,64 @@ struct ExpensesView: View {
     
     private var monthlyTrendChart: some View {
         let data = store.monthlyTotals(lastMonths: 12, categoryIDs: nil, isFixed: nil)
+        let budgetData: [(label: String, budget: Double)] = data.compactMap { item in
+            if let b = store.budget(for: item.year, month: item.month) {
+                return (label: item.label, budget: b.amount)
+            } else if store.defaultBudget > 0 {
+                return (label: item.label, budget: store.defaultBudget)
+            }
+            return nil
+        }
         
         return VStack(alignment: .leading, spacing: 4) {
-            Text("Monthly Spending")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("Monthly Spending")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !budgetData.isEmpty {
+                    HStack(spacing: 10) {
+                        HStack(spacing: 3) {
+                            Circle().fill(Color.accentColor).frame(width: 6, height: 6)
+                            Text("Spent").font(.system(size: 8)).foregroundStyle(.secondary)
+                        }
+                        HStack(spacing: 3) {
+                            Circle().fill(Color.red).frame(width: 6, height: 6)
+                            Text("Budget").font(.system(size: 8)).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
             
             if data.contains(where: { $0.total > 0 }) {
-                Chart(data, id: \.label) { item in
-                    LineMark(
-                        x: .value("Month", item.label),
-                        y: .value("Amount", item.total)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(Color.accentColor)
+                Chart {
+                    ForEach(data, id: \.label) { item in
+                        LineMark(
+                            x: .value("Month", item.label),
+                            y: .value("Amount", item.total),
+                            series: .value("Series", "Spent")
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(Color.accentColor)
+                        
+                        AreaMark(
+                            x: .value("Month", item.label),
+                            y: .value("Amount", item.total)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(Color.accentColor.opacity(0.1).gradient)
+                    }
                     
-                    AreaMark(
-                        x: .value("Month", item.label),
-                        y: .value("Amount", item.total)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(Color.accentColor.opacity(0.1).gradient)
+                    ForEach(budgetData, id: \.label) { item in
+                        LineMark(
+                            x: .value("Month", item.label),
+                            y: .value("Amount", item.budget),
+                            series: .value("Series", "Budget")
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(.red)
+                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                    }
                 }
                 .chartYAxis {
                     AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
