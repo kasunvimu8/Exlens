@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode user data
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+
+# Xcode build
+build/
+DerivedData/
+*.moved-aside
+*.xccheckout
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+
+# CocoaPods (if used)
+Pods/
+
+# Misc
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
