@@ -42,6 +42,10 @@ class ExpenseStore {
         didSet { saveBudgets() }
     }
     
+    var fixedCostTemplates: [FixedCostTemplate] = [] {
+        didSet { saveFixedCostTemplates() }
+    }
+
     var dashboardWidgets: [DashboardWidgetConfig] = [] {
         didSet { saveDashboardWidgets() }
     }
@@ -56,6 +60,7 @@ class ExpenseStore {
     private let budgetsKey = "monthlyBudgets"
     private let defaultBudgetKey = "defaultBudget"
     private let themeKey = "appTheme"
+    private let fixedCostTemplatesKey = "fixedCostTemplates"
     private let dashboardWidgetsKey = "dashboardWidgets"
 
     init() {
@@ -70,6 +75,7 @@ class ExpenseStore {
         loadCategories()
         loadExpenses()
         loadBudgets()
+        loadFixedCostTemplates()
         loadDashboardWidgets()
         if dashboardWidgets.isEmpty {
             dashboardWidgets = Self.defaultWidgetConfig()
@@ -214,6 +220,12 @@ class ExpenseStore {
         expenses.remove(atOffsets: offsets)
     }
     
+    func updateExpense(_ expense: Expense) {
+        if let index = expenses.firstIndex(where: { $0.id == expense.id }) {
+            expenses[index] = expense
+        }
+    }
+
     func deleteExpense(id: UUID) {
         expenses.removeAll { $0.id == id }
     }
@@ -245,6 +257,53 @@ class ExpenseStore {
         }
     }
     
+    // MARK: - Fixed Cost Template Methods
+
+    func addFixedCostTemplate(_ template: FixedCostTemplate) {
+        fixedCostTemplates.append(template)
+    }
+
+    func updateFixedCostTemplate(_ template: FixedCostTemplate) {
+        if let index = fixedCostTemplates.firstIndex(where: { $0.id == template.id }) {
+            fixedCostTemplates[index] = template
+        }
+    }
+
+    func deleteFixedCostTemplate(id: UUID) {
+        fixedCostTemplates.removeAll { $0.id == id }
+    }
+
+    /// Applies all fixed cost templates as expenses for the given month.
+    /// Returns the number of expenses added.
+    @discardableResult
+    func applyFixedCosts(year: Int, month: Int) -> Int {
+        let date = Date()
+
+        var count = 0
+        for template in fixedCostTemplates {
+            let expense = Expense(
+                title: template.title,
+                amount: template.amount,
+                date: date,
+                categoryID: template.categoryID,
+                categoryName: template.categoryName,
+                categoryIcon: template.categoryIcon,
+                isFixed: true
+            )
+            expenses.append(expense)
+            count += 1
+        }
+        return count
+    }
+
+    /// Checks if fixed costs have already been applied for a given month.
+    func hasFixedCostsApplied(year: Int, month: Int) -> Bool {
+        let monthExpenses = expenses(for: year, month: month)
+        let templateTitles = Set(fixedCostTemplates.map(\.title))
+        let fixedInMonth = monthExpenses.filter { $0.isFixed && templateTitles.contains($0.title) }
+        return fixedInMonth.count >= fixedCostTemplates.count && !fixedCostTemplates.isEmpty
+    }
+
     func addCategory(_ category: CustomCategory) {
         categories.append(category)
     }
@@ -298,6 +357,19 @@ class ExpenseStore {
         }
     }
     
+    private func saveFixedCostTemplates() {
+        if let data = try? JSONEncoder().encode(fixedCostTemplates) {
+            UserDefaults.standard.set(data, forKey: fixedCostTemplatesKey)
+        }
+    }
+
+    private func loadFixedCostTemplates() {
+        if let data = UserDefaults.standard.data(forKey: fixedCostTemplatesKey),
+           let decoded = try? JSONDecoder().decode([FixedCostTemplate].self, from: data) {
+            fixedCostTemplates = decoded
+        }
+    }
+
     private func saveDashboardWidgets() {
         if let data = try? JSONEncoder().encode(dashboardWidgets) {
             UserDefaults.standard.set(data, forKey: dashboardWidgetsKey)

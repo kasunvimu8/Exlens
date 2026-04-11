@@ -22,6 +22,10 @@ struct ExpensesView: View {
     }()
     @State private var typeFilter: ExpenseTypeFilter = .all
     @State private var showingBreakdown = false
+    @State private var expenseToEdit: Expense?
+    @State private var showingApplyFixedCosts = false
+    @State private var appliedCount = 0
+    @State private var showingAppliedConfirmation = false
     
     enum ExpenseTypeFilter: String, CaseIterable {
         case all = "All"
@@ -133,12 +137,24 @@ struct ExpensesView: View {
                         } else {
                             ForEach(filteredExpenses) { expense in
                                 expenseRow(expense)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        expenseToEdit = expense
+                                    }
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button(role: .destructive) {
                                             store.deleteExpense(id: expense.id)
                                         } label: {
                                             Label("Delete", systemImage: "trash")
                                         }
+                                    }
+                                    .swipeActions(edge: .leading) {
+                                        Button {
+                                            expenseToEdit = expense
+                                        } label: {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+                                        .tint(.accentColor)
                                     }
                             }
                         }
@@ -152,12 +168,22 @@ struct ExpensesView: View {
             .toolbar {
                 ToolbarItem {
                     Menu {
+                        if !store.fixedCostTemplates.isEmpty {
+                            Button {
+                                showingApplyFixedCosts = true
+                            } label: {
+                                Label("Apply Fixed Costs", systemImage: "pin.fill")
+                            }
+
+                            Divider()
+                        }
+
                         Button {
                             showingImport = true
                         } label: {
                             Label("Import CSV", systemImage: "square.and.arrow.down")
                         }
-                        
+
                         Button {
                             showingExport = true
                         } label: {
@@ -184,7 +210,44 @@ struct ExpensesView: View {
             .sheet(isPresented: $showingExport) {
                 CSVExportShareSheet(fileURL: ExportHelper.generateExportURL(expenses: store.expenses))
             }
+            .sheet(item: $expenseToEdit) { expense in
+                EditExpenseView(expense: expense)
+            }
+            .alert("Apply Fixed Costs", isPresented: $showingApplyFixedCosts) {
+                Button("Apply") {
+                    let my = selectedMonthYear ?? currentMonthYear
+                    appliedCount = store.applyFixedCosts(year: my.year, month: my.month)
+                    showingAppliedConfirmation = true
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                let my = selectedMonthYear ?? currentMonthYear
+                let monthName = formatMonthName(year: my.year, month: my.month)
+                let total = store.fixedCostTemplates.reduce(0) { $0 + $1.amount }
+                if store.hasFixedCostsApplied(year: my.year, month: my.month) {
+                    Text("Fixed costs may already be applied for \(monthName). Add \(store.fixedCostTemplates.count) fixed expenses (\(total.formatted(.currency(code: store.selectedCurrency)))) anyway?")
+                } else {
+                    Text("Add \(store.fixedCostTemplates.count) fixed expenses totaling \(total.formatted(.currency(code: store.selectedCurrency))) for \(monthName)?")
+                }
+            }
+            .alert("Fixed Costs Applied", isPresented: $showingAppliedConfirmation) {
+                Button("OK") { }
+            } message: {
+                Text("\(appliedCount) fixed expenses added successfully.")
+            }
         }
+    }
+
+    private var currentMonthYear: (year: Int, month: Int) {
+        let now = Date()
+        let cal = Calendar.current
+        return (year: cal.component(.year, from: now), month: cal.component(.month, from: now))
+    }
+
+    private func formatMonthName(year: Int, month: Int) -> String {
+        let components = DateComponents(year: year, month: month)
+        let date = Calendar.current.date(from: components) ?? Date()
+        return date.formatted(.dateTime.month(.wide).year())
     }
     
     // MARK: - Expense Row

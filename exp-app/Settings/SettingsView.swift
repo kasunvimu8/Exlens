@@ -4,8 +4,6 @@ struct SettingsView: View {
     @Environment(ExpenseStore.self) private var store
     @State private var defaultBudgetText = ""
     @FocusState private var budgetFieldFocused: Bool
-    @State private var showingImport = false
-    @State private var showingExport = false
     @State private var showingDeleteAllConfirmation = false
     
     private let availableCurrencies: [(code: String, symbol: String)] = [
@@ -28,6 +26,17 @@ struct SettingsView: View {
                             Label("Categories", systemImage: "folder.fill")
                             Spacer()
                             Text("\(store.categories.count)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    NavigationLink {
+                        FixedCostsView()
+                    } label: {
+                        HStack {
+                            Label("Fixed Costs", systemImage: "pin.fill")
+                            Spacer()
+                            Text("\(store.fixedCostTemplates.count)")
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -87,25 +96,6 @@ struct SettingsView: View {
                 }
                 
                 Section {
-                    Button {
-                        showingImport = true
-                    } label: {
-                        Label("Import from CSV", systemImage: "square.and.arrow.down")
-                    }
-                    
-                    Button {
-                        showingExport = true
-                    } label: {
-                        Label("Export to CSV", systemImage: "square.and.arrow.up")
-                    }
-                    .disabled(store.expenses.isEmpty)
-                } header: {
-                    Label("Data", systemImage: "externaldrive.fill")
-                } footer: {
-                    Text("Import expenses from a CSV file or export all expenses. CSV columns: description, category, date, amount, isFixed.")
-                }
-                
-                Section {
                     Button(role: .destructive) {
                         showingDeleteAllConfirmation = true
                     } label: {
@@ -117,12 +107,6 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .sheet(isPresented: $showingImport) {
-                CSVImportView()
-            }
-            .sheet(isPresented: $showingExport) {
-                CSVExportShareSheet(fileURL: ExportHelper.generateExportURL(expenses: store.expenses))
-            }
             .alert("Delete All Expenses", isPresented: $showingDeleteAllConfirmation) {
                 Button("Delete All", role: .destructive) {
                     store.deleteAllExpenses()
